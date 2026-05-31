@@ -1,0 +1,564 @@
+{
+  "name": "FREELO AI PingPong",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=comments: seznam všech komentářů k úkolu ( čím novější komentář, tím důležitější. Poznáš to dle data date_add u komentářů)\n{{ JSON.stringify($('Získání dat freelo - přehled task').item.json.comments, null, 2) }}\n\ntask: objekt s detailem úkolu (id, title, description)  \nID: {{ $('Získání dat freelo - přehled task').item.json.id }}\ntitle: {{ $('Získání dat freelo - přehled task').item.json.name }}\ndescription: Je to komentář, kde is_description == true\nDeadline: {{ $json.due_date }}\n",
+        "options": {
+          "systemMessage": "=You are an AI Task-Quality Agent. Your job is to monitor ongoing task discussions, detect potential issues, and – pokud je to nutné – okamžitě upozornit projektového manažera přes Telegram.\n\n1) Vstupy jsou v user datech\n\n\n\n2) Kroky:\n      i) Shrň hlavní body diskuze (3–5 vět).  \n      ii) Vyhodnoť sentiment a identifikuj jakékoliv negativní, zmatené nebo konfliktní pasáže.  \n      iii) Zkontroluj, zda je popis úkolu dostatečně kompletní (jasné zadání).  \n      iv) Ověř, že body s diskuse již nejsou vyřešené v komentářích.\n      v) Pokud objevíš alespoň jednu z následujících situací, považuj to za “issue”:\n         - nesoulad mezi komentáři a zadáním  \n         - otevřené/nevyřešené otázky\n         - otevřené/nevyřešené otázky, na které nikdo neodpověděl do 3 dnů, nebo odpověď byla nejasná  \n         - vyjádřená frustrace či konflikt  \n         - nejasné nebo chybějící informace  \n      vi) Pro každé “issue” vygeneruj krátký popis (1–2 věty)\n       vii) Nepovažuj za issue, pokud pozdější komentář daný problém odpovídá nebo řeší (porovnej `date_add`)  \n+     viii) Pokud autor úkolu (Tomáš Drdla) reagoval schvalujícím způsobem, nebo klikl na reakci, považuj problém za vyřešený.\n      ix)  Navrhni konkrétní kroky k řešení identifikovaných “issues”: popiš, co by se mělo v úkolu stát, aby byl problém vyřešen ( 1-4 věty).  \n\n\n4) Výstup:\n   • Pokud jsou detekovány “issues”, vyvolej nástroj `Send a message in Slack` se zprávou:\n       \"text\": \"🚨 Úkol: {{ $('Získání dat freelo - přehled task').item.json.name }} \\n\nProjekt: {{ $('Webhook').item.json.body.data.project.name }} \\n\n\\n\nProblémy: \\n\n• {Issue1 popis}\\n\n• {Issue2 popis…}\\n\n\nNávrh řešení\\n\n• {Návrh řešení 1 problému}\\n\n• {Návrh řešení 2 problému}\\n\n\nOdkaz na úkol\n↳ Odkaz: https://app.freelo.io/task/{{ $('Získání dat freelo - přehled task').item.json.id }}\"\n     \n   • Pokud žádné “issues” nejsou, vrať, tak není potřeba nic dělat\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        720,
+        -544
+      ],
+      "id": "ec3d369a-063b-4d13-9e68-b31ab9c67dd4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        656,
+        -320
+      ],
+      "id": "65f36171-b17a-428b-9f77-2d949532ad3a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "ajvTXfIkzHzPrnEW",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.headers[\"sentry-trace\"] }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        784,
+        -320
+      ],
+      "id": "b47be714-c926-497b-a0ab-839e493e1e50",
+      "name": "Window Buffer Memory"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "75c54c80-e837-4ab0-80ee-9e8ee7461f4c",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -688,
+        -448
+      ],
+      "id": "07e0b9ac-5569-458c-b858-20993ccefb81",
+      "name": "Webhook",
+      "webhookId": "75c54c80-e837-4ab0-80ee-9e8ee7461f4c"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.freelo.io/v1/task/{{ $('Webhook').item.json.body.data.task.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        -544
+      ],
+      "id": "61f77a79-3db6-4bbd-b23d-056df3e2ba6d",
+      "name": "Získání dat freelo - přehled task",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3Cl1YMFaGGk8i4po",
+          "name": "FREELO Tomáš Drdla"
+        },
+        "httpBasicAuth": {
+          "id": "kv9Jf9zN7omHcj0X",
+          "name": "Freelo - Tomáš Drdla"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ffc7368e-5110-44a4-8d5f-b5c8b06792c7",
+              "leftValue": "={{ $json.comments.length }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        432,
+        -544
+      ],
+      "id": "0257a4a1-3339-4e2a-ab9a-045080c6fe73",
+      "name": "Více než 10 komentářů"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a0fc62e1-b6f6-4eca-bb78-aefaa2668014",
+              "leftValue": "={{ $json.last_update }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "ad8d9f42-c4c3-485c-aead-dbd08fb3456f",
+              "leftValue": "={{ $json.last_notification }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -240,
+        -448
+      ],
+      "id": "91f6250a-44df-4bbe-bec9-bc34258f2c16",
+      "name": "Není záznam"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4166baac-6ea5-44f5-aa67-1122a4b5018c",
+              "leftValue": "={{ $('GET date of update/notification').item.json.last_notification }}",
+              "rightValue": "={{ Math.floor(Date.now() / 1000) - 8 * 3600 }}\n",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "a136501e-ced6-47c3-bb90-9758b398908d",
+              "leftValue": "={{ $json.last_update }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -16,
+        -384
+      ],
+      "id": "ac89c193-cd49-43fb-a80c-7f4b278f3d5d",
+      "name": "Update starší než 8 hodin"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  t.last_update,\n  t.last_notification\nFROM\n  (SELECT NULL AS last_update, NULL AS last_notification) AS fallback\nLEFT JOIN\n  freelo_ping_pong t ON t.ID_task = {{  $json.body.data.id  }}\n",
+        "options": {
+          "queryReplacement": "="
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -464,
+        -448
+      ],
+      "id": "0f78901c-c276-4c6d-92f7-141ff8ccfd6f",
+      "name": "GET date of update/notification",
+      "credentials": {
+        "mySql": {
+          "id": "uos0GZ1vXrjshgM4",
+          "name": "ACTIVE24 - n8n - TOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": {
+          "__rl": true,
+          "value": "freelo_ping_pong",
+          "mode": "list",
+          "cachedResultName": "freelo_ping_pong"
+        },
+        "dataMode": "defineBelow",
+        "columnToMatchOn": "ID_task",
+        "valueToMatchOn": "={{ $('Webhook').item.json.body.data.id }}",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "last_update",
+              "value": "={{ new Date().toISOString().slice(0, 19).replace('T', ' ') }}\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        208,
+        -336
+      ],
+      "id": "99a1ed30-c7b1-4049-84a2-ba0d6f0e6536",
+      "name": "date update",
+      "credentials": {
+        "mySql": {
+          "id": "uos0GZ1vXrjshgM4",
+          "name": "ACTIVE24 - n8n - TOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": {
+          "__rl": true,
+          "value": "freelo_ping_pong",
+          "mode": "list",
+          "cachedResultName": "freelo_ping_pong"
+        },
+        "dataMode": "defineBelow",
+        "columnToMatchOn": "ID_task",
+        "valueToMatchOn": "={{ $('Webhook').item.json.body.data.id }}",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "last_update",
+              "value": "={{ new Date().toISOString().slice(0, 19).replace('T', ' ') }}"
+            },
+            {
+              "column": "last_notification",
+              "value": "={{ new Date().toISOString().slice(0, 19).replace('T', ' ') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1120,
+        -544
+      ],
+      "id": "12ab17a1-a298-4f63-aeb4-1e7ae0027ef5",
+      "name": "UPDATE - last times",
+      "credentials": {
+        "mySql": {
+          "id": "uos0GZ1vXrjshgM4",
+          "name": "ACTIVE24 - n8n - TOM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "problémové-úkoly",
+          "mode": "name"
+        },
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Message_Text', ``, 'string') }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slackTool",
+      "typeVersion": 2.3,
+      "position": [
+        912,
+        -320
+      ],
+      "id": "08124bc0-bc92-40a1-a442-df26b4ec5bc0",
+      "name": "Send a message in Slack",
+      "webhookId": "cbbcb018-aaa2-4cf8-a4ca-539072225476",
+      "credentials": {
+        "slackApi": {
+          "id": "IN0omtS0uaVsQmIL",
+          "name": "SLACK - BOGTtoken"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.webotvurci.cz",
+            "user-agent": "Freelo webhook",
+            "content-length": "713",
+            "accept": "application/json",
+            "baggage": "sentry-trace_id=aa8340ddd80d4402887e215b61b432a7,sentry-sample_rate=0.1,sentry-transaction=Api%3AComment%20add,sentry-public_key=442f4338a620f0c2907193625c08e348,sentry-release=c0060608,sentry-environment=production,sentry-sampled=false,sentry-sample_rand=0.500067",
+            "content-type": "application/json",
+            "sentry-trace": "aa8340ddd80d4402887e215b61b432a7-05fc6adda6d44657-0",
+            "via": "1.1 Caddy",
+            "x-forwarded-for": "88.86.119.9",
+            "x-forwarded-host": "n8n.webotvurci.cz",
+            "x-forwarded-proto": "https",
+            "accept-encoding": "gzip"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "type": "comment_created",
+            "created_at": "2025-06-19T10:30:32+02:00",
+            "author": {
+              "id": 45246,
+              "fullname": "Tomáš Drdla"
+            },
+            "data": {
+              "id": 25056681,
+              "content": "<div><span data-freelo-mention=\"1\" data-freelo-user-id=\"162786\">@AmilaKasum</span>  něco v tom to duchu? nebo to máme udělat více jako odznáček?<br><br>Děkuji</div>",
+              "date_add": "2025-06-19T10:30:32+02:00",
+              "author": {
+                "id": 45246,
+                "fullname": "Tomáš Drdla"
+              },
+              "project": {
+                "id": 281796,
+                "name": "kasumex.cz"
+              },
+              "tasklist": {
+                "id": 911717,
+                "name": "CZ eshop",
+                "state": {
+                  "id": 1,
+                  "state": "active"
+                }
+              },
+              "task": {
+                "id": 19335223,
+                "name": "Michal: odznáček k produktu jako je 30 let",
+                "state": {
+                  "id": 1,
+                  "state": "active"
+                },
+                "labels": []
+              }
+            }
+          },
+          "webhookUrl": "https://n8n.webotvurci.cz/webhook/75c54c80-e837-4ab0-80ee-9e8ee7461f4c",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "UPDATE - last times",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "GET date of update/notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Získání dat freelo - přehled task": {
+      "main": [
+        [
+          {
+            "node": "Více než 10 komentářů",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Více než 10 komentářů": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Není záznam": {
+      "main": [
+        [
+          {
+            "node": "Získání dat freelo - přehled task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update starší než 8 hodin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update starší než 8 hodin": {
+      "main": [
+        [
+          {
+            "node": "Získání dat freelo - přehled task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "date update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET date of update/notification": {
+      "main": [
+        [
+          {
+            "node": "Není záznam",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message in Slack": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedPerExecution": 5
+  },
+  "versionId": "eceb9775-19bd-4534-96c6-294e174c4df4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ccb360bd9d16aebd298cc3e1c97e548940e18e8e2e88b779f072f011cff64b39"
+  },
+  "id": "Kx3ky834ePgFgGYt",
+  "tags": [
+    {
+      "updatedAt": "2025-05-23T19:30:44.228Z",
+      "createdAt": "2025-05-23T19:30:44.228Z",
+      "id": "z4cpMPjKSLvealym",
+      "name": "Freelo"
+    }
+  ]
+}
