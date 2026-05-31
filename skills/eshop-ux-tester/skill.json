@@ -1,0 +1,122 @@
+{
+  "name": "eshop-ux-tester",
+  "version": "1.0.0",
+  "description": "Simulated user-testing of e-commerce sites: 4+ eshop-tailored personas browse the shop in parallel via Playwright (mobile + desktop) and deliver a Czech UX report. Designed for Shoptet where CSS/JS overrides prevent static scraping.",
+  "category": "ux",
+  "author": "skills-marketplace",
+  "license": "MIT",
+  "triggers": [
+    "ux test",
+    "uzivatelske testovani",
+    "uživatelské testování",
+    "persona test",
+    "eshop test",
+    "user testing",
+    "conversion review",
+    "uxový audit eshopu",
+    "test eshopu"
+  ],
+  "entry": "SKILL.md",
+  "files": [
+    "SKILL.md",
+    "PERSONAS.md",
+    "JOURNEYS.md",
+    "DEV_RULES.md",
+    "AGENTS.md",
+    "README.md",
+    "CHANGELOG.md",
+    "skill.json",
+    "scripts/setup-playwright.sh"
+  ],
+  "requires_files": [
+    "PERSONAS.md",
+    "JOURNEYS.md",
+    "DEV_RULES.md",
+    "AGENTS.md"
+  ],
+  "dependencies": [
+    {
+      "type": "runtime",
+      "name": "node",
+      "min_version": "18",
+      "reason": "Required for Playwright. Setup script installs Playwright locally to ux-testing/.playwright/ on first run."
+    },
+    {
+      "type": "npm",
+      "name": "playwright",
+      "install": "auto",
+      "reason": "Only supported browser automation — Shoptet CSS/JS overrides break static scrapers."
+    }
+  ],
+  "min_claude_version": "claude-sonnet-4",
+  "modes": {
+    "new-test": {
+      "description": "Fresh test: crawl eshop, generate personas, run tests.",
+      "default": true
+    },
+    "re-test": {
+      "description": "Re-run against a previously tested eshop with saved personas to diff against last SUMMARY.",
+      "requires": "previous-run-in-ux-testing-dir"
+    }
+  },
+  "output_contracts": {
+    "produces": [
+      {
+        "file": "ux-testing/<domain>/<timestamp>/SUMMARY.md",
+        "format": "markdown",
+        "description": "Aggregated UX report in Czech: priority issues, per-persona insights, working-well list, re-test diff."
+      },
+      {
+        "file": "ux-testing/<domain>/<timestamp>/personas/<slug>.md",
+        "format": "markdown",
+        "description": "Per-persona journey report with decision verdict, friction list, screenshots refs."
+      },
+      {
+        "file": "ux-testing/<domain>/<timestamp>/personas.json",
+        "format": "json",
+        "description": "Approved persona definitions (reused in re-tests for comparability)."
+      },
+      {
+        "file": "ux-testing/<domain>/<timestamp>/raw-crawl.json",
+        "format": "json",
+        "description": "Discovery crawl data used to seed persona generation."
+      },
+      {
+        "file": "ux-testing/<domain>/<timestamp>/screenshots/<slug>/*.png",
+        "format": "png",
+        "description": "Screenshots captured during each persona's journey."
+      }
+    ],
+    "consumes": [
+      {
+        "file": "ux-testing/<domain>/<prev-timestamp>/personas.json",
+        "optional": true,
+        "description": "Loaded in re-test mode to keep persona identities stable across runs."
+      }
+    ]
+  },
+  "hitl_pauses": [
+    { "after": "phase-1", "prompt": "Potvrď navržené persony, device mix a designated Buyer." },
+    { "after": "phase-3", "prompt": "Review finálního SUMMARY.md reportu." }
+  ],
+  "agents": [
+    "persona-tester"
+  ],
+  "safety": {
+    "max_real_orders_per_run": 1,
+    "required_order_note_substring": "TEST OBJEDNÁVKA — prosím ignorovat",
+    "guest_checkout_only_by_default": true,
+    "third_party_consent_required": true
+  },
+  "tags": [
+    "ux",
+    "user-testing",
+    "e-commerce",
+    "shoptet",
+    "playwright",
+    "persona",
+    "conversion",
+    "cz",
+    "parallel-agents"
+  ]
+}
