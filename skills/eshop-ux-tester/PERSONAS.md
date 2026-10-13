@@ -78,6 +78,12 @@ When generating N personas, distribute them across these dimensions. Aim for var
 
 Buyer default = persona 2 (zkušený kupec) — nejvíc pravděpodobně dokončí objednávku a reálně zvládne edge-case během checkoutu. Lze přesunout.
 
+**Pravidla pro Designated Buyer (tvrdá — historicky 3 z 9 běhů skončily bez objednávky, což degraduje celý test):**
+
+1. **Právě jeden Buyer na běh.** Ne nula. Pokud si uživatel nepřeje odeslat objednávku, zapiš to explicitně a v SUMMARY uveď jako omezení rozsahu.
+2. **Buyer musí mít platební preferenci převod / dobírka / faktura** — nikdy "platí výhradně kartou online". Platební brána přesměruje pryč a test přijde o děkovací stránku i číslo objednávky (hlavní důkaz běhu). Chování karty se popisuje z checkout kroku, neklikají se do ní.
+3. **Pre-flight před přiřazením role:** pokud crawl ukázal age-gate (vape, alkohol, lékárna), ověřovací QR, nebo povinnou registraci, zvol Buyera, který jimi projde, a v návrhu person na to upozorni. Pokud se Buyer zablokuje až během běhu, orchestrátor roli přeřadí jiné personě, která ještě nedošla do checkoutu (pokud taková je), a zapíše to.
+
 ---
 
 ## Persona file format

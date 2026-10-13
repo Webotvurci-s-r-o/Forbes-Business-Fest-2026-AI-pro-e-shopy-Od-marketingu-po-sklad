@@ -107,6 +107,13 @@ File naming: `screenshots/<persona-slug>/<NN>-<short-label>.png`, where NN is a 
 
 Full-page screenshots preferred for content-heavy pages (category, PDP, cart). Viewport-only fine for modals and transient friction.
 
+**Screenshot folder & reference rules:**
+
+- `screenshots/<slug>/` contains **only `.png` files** — no scripts, no `storage.json`, no DOM dumps. Everything else goes to `work/<slug>/`.
+- References in reports are always **relative** (`screenshots/<slug>/NN-label.png`) — never absolute filesystem paths; the client opens the folder on their own machine.
+- Never reference a filename you didn't verify exists (`ls` the directory before writing the report). Renamed or crashed-run files are the #1 source of dangling references.
+- Screenshots are the run's most valuable asset for the client — the Orchestrator embeds them in SUMMARY.md. Capture generously at friction points.
+
 ---
 
 ## 6. Test data policy
@@ -115,7 +122,7 @@ When personas fill forms (checkout):
 - **Email:** `test+<persona-slug>@<eshop-domain-with-hyphens>` — e.g., `test+barbora-k@mujeshop-cz.cz`. Never use a real human's email.
 - **Telefon:** `+420 777 000 000` (or a variant persona might type — real personas make realistic typos; note any related validation).
 - **Adresa:** plausibly real (persona's stated city + a plausible street). Don't use a real person's address. Generic apartment numbers.
-- **Jméno:** from persona definition.
+- **Jméno:** from persona definition — **ALWAYS**, including the Designated Buyer at submit. Past runs replaced the persona with the operator's real name and agency e-mail at the final step ("TEST — Tomáš Drdla"), which (a) skips testing name/address/PSČ validation with realistic data, and (b) leaks the agency's identity into the client's order DB. The ONLY test markers are the e-mail pattern and the order note.
 - **Poznámka k objednávce (Designated Buyer ONLY):** must contain `TEST OBJEDNÁVKA — prosím ignorovat` exactly. This is how the shop owner knows to cancel.
 
 ---
@@ -154,12 +161,20 @@ What IS allowed: Phase 1 discovery crawl of a shop you have permission to test (
 
 ---
 
-## 10. Output file writing
+## 10. Output file writing & workspace hygiene
 
 - Each persona writes to their own markdown file. The subagent must not touch other personas' files.
 - The Orchestrator writes `raw-crawl.json`, `personas.json`, and `SUMMARY.md`. Subagents don't.
 - All files UTF-8. Czech diacritics preserved.
 - Markdown uses standard CommonMark; no GitHub-specific extensions that would break other renderers.
+- **The run folder is a client deliverable.** Scratch files (`.cjs` scripts, `*.storage.json`, DOM dumps, raw observation notes, selector probes, extra crawl JSONs) live in `work/<slug>/` (personas) or `work/_orchestrator/` (orchestrator). Never at the run-folder top level, never in `screenshots/`. Phase 3 ends with a cleanup pass.
+- **`personas.json` shape is always `{"personas": [...]}`** — never a bare array. Re-Test Mode loads this file and a shape mismatch breaks it.
+
+## 10a. Client language in deliverables
+
+`SUMMARY.md` and `personas/*.md` are read by a shop owner. They must never contain internal tooling vocabulary: *sandbox, subagent, harness, Playwright, storageState, selector, `.cjs`, viewport emulation, deviceScaleFactor* — or apologies about the automation ("skript se nepodařilo spustit"). Rephrase into user-facing language: "automatizovaný test nedokázal pole vyplnit — doporučujeme ověřit ručně". Automation troubleshooting belongs in `work/<slug>/run-notes.md`.
+
+An automation artifact must never be presented as a customer-facing bug. If you can't tell whether a failure would happen to a real human (e.g. a form rejecting programmatic input), it goes to `## Otevřené věci — nutno ověřit ručně`, not into the priority list.
 
 ---
 

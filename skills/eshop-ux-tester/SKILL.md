@@ -9,7 +9,7 @@ triggers:
   - user testing
   - conversion review
   - uxový audit eshopu
-version: 1.0.0
+version: 1.1.0
 author: skills-marketplace
 ---
 
@@ -30,6 +30,8 @@ All user-facing output, persona dialogue, and reports are **in Czech**. Internal
 5. **Playwright is mandatory.** Never use `curl`, `fetch`, `requests`, or any static scraper. Shoptet's client-side overrides will give misleading results.
 6. **Each persona runs as its own subagent in parallel.** Spawn all persona subagents in a single turn (multiple Agent tool calls in one message). See AGENTS.md.
 7. **Read the supporting files.** Before Phase 1 starts, load `PERSONAS.md`, `JOURNEYS.md`, `DEV_RULES.md`, and `AGENTS.md`. They contain rules you must follow.
+8. **The run never ends without `SUMMARY.md`.** Partial personas, blocked Buyer, whatever happened — Phase 3 always runs and always produces the report, with gaps honestly marked. A run folder without SUMMARY is a failed delivery.
+9. **The Buyer pays převodem/dobírkou, never by card gateway** — otherwise the redirect eats the thank-you page and the order number, which is the run's key proof. See JOURNEYS.md Step 7.
 
 ---
 
@@ -43,11 +45,21 @@ ux-testing/<eshop-domain>/<YYYY-MM-DD-HHMM>/
 │   ├── <persona-slug>.md           # full feedback from each persona
 │   └── ...
 ├── screenshots/
-│   └── <persona-slug>/              # screenshots captured during the run
+│   └── <persona-slug>/              # ONLY .png files — nothing else
+├── work/
+│   └── <persona-slug>/              # scratch: .cjs scripts, storage.json, DOM dumps, raw notes
 ├── raw-crawl.json                   # Phase 1 discovery data
 ├── personas.json                    # approved persona definitions (for re-tests)
 └── SUMMARY.md                       # final aggregated report
 ```
+
+**This folder is a client deliverable.** The client opens it. Hard rules:
+
+- `screenshots/<slug>/` contains **only `.png` files**. Scripts, `*.storage.json`, DOM dumps, `*-body.txt`, selector probes — all of that goes to `work/<slug>/`.
+- No scratch files at the run-folder top level (`crawl.cjs`, `raw-crawl2.json`, `*-observations-raw.txt`, `menu-extraction.json`, …). Orchestrator scratch goes to `work/_orchestrator/`.
+- `personas.json` always has the shape `{"personas": [...]}` — never a bare array (Re-Test Mode depends on this).
+- All screenshot references in any `.md` file are **relative paths** (`screenshots/<slug>/NN-label.png`), never absolute filesystem paths.
+- Phase 3 ends with a cleanup pass: any stray file gets moved into `work/` before the run is declared done.
 
 `<eshop-domain>` is the **full hostname** with dots replaced by hyphens (no scheme, no path). Lowercase. Keep subdomains — they distinguish dev from prod. Examples: `mujeshop-cz`, `www-eshop-motolety-cz`, `748896-myshoptet-com`, `shop-example-com`. Details in Phase 1 action 3.
 
@@ -183,6 +195,10 @@ Save approved personas to `personas.json` (for potential re-tests).
 
 4. Verify each persona produced a valid report. If a subagent failed or produced an incomplete report, flag it but do not re-run without asking the user.
 
+5. **If the Designated Buyer was blocked** (age-gate, permission error, payment-gateway dead end) and no order was submitted, say so in the status update and record it for Phase 3 — the SUMMARY must state it as a scoped limitation in client language ("objednávku se nepodařilo dokončit kvůli X, doporučujeme ověřit ručně"), never as an internal tooling excuse.
+
+6. **The run MUST NOT end without `SUMMARY.md`.** Even if only 2 of 4 personas finished, proceed to Phase 3 and synthesize what exists, clearly marking gaps. A run folder with persona reports but no SUMMARY is a failed delivery — the client gets nothing they can read.
+
 **Status update to the user (no pause):**
 
 ```
@@ -202,60 +218,152 @@ Proceed immediately to Phase 3. No pause.
 
 ## Phase 3: Synthesis
 
-**Trigger:** All persona subagents have completed.
+**Trigger:** All persona subagents have completed (or failed — see Phase 2 action 6: SUMMARY is always produced).
 
-**Actions:**
+### 3a. Pre-synthesis verification (do this BEFORE writing SUMMARY)
 
-1. Read every persona markdown file.
-2. Identify patterns:
-   - **Shared friction** — issues multiple personas hit (highest priority, likely real UX problems)
-   - **Persona-specific** — issues only one persona raised (may be genuine edge cases or persona bias)
-   - **Device-specific** — issues only mobile or only desktop personas hit
-   - **Delights** — things personas praised (worth preserving during changes)
-3. If this is a Re-Test: load the previous SUMMARY.md and compute a diff — what improved, what regressed, what's new.
-4. Write `SUMMARY.md` with this exact structure:
+1. **Read every persona markdown file.**
+2. **Screenshot integrity gate.** Collect every `*.png` reference from every persona report and verify the file exists on disk. A reference to a non-existent screenshot is a fabrication risk: remove or correct the reference in your synthesis, and never carry an unverifiable claim into SUMMARY as fact. Any claim whose only evidence is a missing screenshot gets downgraded to `[hypotéza — nutno ověřit]`.
+3. **Cross-persona fact reconciliation.** Extract every numeric or named fact that appears in 2+ reports (prices, shipping tariffs, discount %, free-shipping threshold, platform name, countdown/banner presence, warranty lengths). Diff them. For every disagreement, either (a) re-verify with one quick Playwright check, or (b) publish it in a `## Sporná zjištění` section. Never silently pick one version — a client reading two persona reports with different numbers loses trust in the whole report.
+4. **Workspace cleanup.** Move stray scratch files (`*.cjs`, `*.storage.json`, DOM dumps, raw notes) into `work/`. After cleanup the run folder contains only: `personas/`, `screenshots/` (PNGs only), `work/`, `raw-crawl.json`, `personas.json`, `SUMMARY.md`.
+
+### 3b. Synthesis rules
+
+1. **Priorities are by business impact, not by vote count.** How many personas hit an issue is supporting evidence, not the definition:
+   - **P1 — Blokátory nákupu:** anything that charges the customer wrongly, blocks or corrupts order submission, violates a legal obligation (chybějící souhlas s OP/GDPR, cookie lišta bez odmítnutí), or contradicts a public promise of the shop (slibovaná doprava zdarma, která v checkoutu není). **P1 even if only one persona hit it.**
+   - **P2 — Brzdy konverze:** slows down, confuses, or discourages, but doesn't block.
+   - **P3 — Hygiena:** cosmetic and technical debt. Keep it compact (max ~8 items) — no devtools noise a shop owner will never action.
+2. **Anti-fabrication rules (hard):**
+   - Never state a % conversion impact, revenue estimate, or "industry benchmark" without a named source or the client's own data. If you must estimate, label it `[kvalifikovaný odhad, neověřeno daty]`.
+   - Never invent segment sizes ("dárky = 30–50 % obratu parfumérií").
+   - Tag every finding with its source: `[pozorováno personou]` / `[z crawlu]` / `[hypotéza — nutno ověřit]`.
+   - Never describe persona agreement as "nezávisle na sobě" — personas are simulated by the same model; convergence is an indicator, not independent validation. Write "shodně napříč personami".
+   - If the Buyer's submit failed because of automation (blocked input, gateway redirect, sandbox), that goes into `## Otevřené věci — nutno ověřit ručně`, **not** into P1 as a customer-facing bug.
+3. **Client language only.** SUMMARY.md must never contain: sandbox, subagent, harness, Playwright, storageState, selector, `.cjs`, or any agent/tooling vocabulary. Rephrase into what a shop owner understands ("automatizovaný test nedokázal pole vyplnit — doporučujeme ověřit ručně").
+4. **Generic vs. specific.** Findings that are Shoptet platform defaults (newsletter opt-out wording, e-mail validace odmítající `+`, cookie lišta, chybějící H1 na homepage, default "Můj e-shop" title) go into their own section `## Standardní nedostatky platformy Shoptet` — never mixed into the shop-specific priorities. Two clients comparing reports must not find the same "bespoke" finding.
+5. **Screenshots are the product.** Every P1 finding embeds at least one screenshot inline with `![popis](screenshots/<slug>/NN-label.png)` (relative path). P2 findings link screenshots where available. The personas captured 100+ images — a report that references none of them wastes the run's single biggest asset.
+6. **Real data when available — and say which mode you're in.** Analytics access is usually NOT available (agency clients rarely share GA). In Phase 3, actively verify: check whether connected MCP tools (GA4 / Search Console / Shoptet API) actually contain a property/account for the tested domain. Then state the mode **prominently in the SUMMARY header**:
+   - Data available → pull checkout funnel drop-off, mobile vs. desktop conversion, AOV vs. free-shipping threshold, internal-search zero-result queries, and mark findings backed by them `[změřeno]`. One real number ("v kroku 2 odpadá 41 % košíků") beats any estimate.
+   - No data → SUMMARY header says: `**Datová opora:** bez analytických dat — čistě simulované uživatelské testování (4 persony)`. Never imply quantitative backing that doesn't exist; this line is what keeps the report honest.
+7. If this is a Re-Test: load the previous SUMMARY.md and compute a diff — what improved, what regressed, what's new.
+
+### 3c. SUMMARY.md structure
+
+Sections marked *(volitelné)* are omitted when empty — never write an empty section. Everything else is mandatory.
 
 ```markdown
 # UX testing eshopu — [doména]
 
 **Datum:** [YYYY-MM-DD HH:MM]
-**Testovaly persony:** [jména]
+**Testovaly persony:** [jména + zařízení]
 **Režim:** [Nový test / Re-test oproti <datum>]
+**Datová opora:** [GA4/Search Console data použita (property X) / bez analytických dat — čistě simulované uživatelské testování]
+**Testovací objednávka:** [č. XXXX odeslána (částka, platba) / neodeslána — důvod v klientské řeči]
 
-## Shrnutí (TL;DR)
-[3–5 vět: nejdůležitější závěry. Co by majitel měl udělat jako první?]
+## Manažerské shrnutí (přečtete za 60 sekund)
+**Verdikt:** [1 věta]
+**Skóre nákupní cesty:** [X/100 — viz skórkarta]
+**3 věci, které vás stojí nejvíc peněz:**
+- [max 20 slov]
+- [max 20 slov]
+- [max 20 slov]
+**Co udělat tento týden:** [3 odrážky s odhadem času]
+[Max 150 slov celkem. Žádné DOM detaily, žádná jména person, žádné důkazy — jen závěry.]
 
-## Priority 1 — Kritické (více person narazilo)
-1. **[Problém]** — [popis] · postihlo: [persony] · device: [mobil/desktop/obojí]
-   - Konkrétní důkaz: [citace nebo screenshot]
-   - Návrh řešení: [co s tím]
+## Skórkarta
+| Oblast | Skóre | Proč |
+|---|---|---|
+| Vyhledávání | X/5 | [1 věta] |
+| Navigace a kategorie | X/5 | … |
+| Produktová stránka | X/5 | … |
+| Košík | X/5 | … |
+| Checkout | X/5 | … |
+| Důvěryhodnost | X/5 | … |
+| Mobilní zážitek | X/5 | … |
+| Právní náležitosti | X/5 | … |
 
-## Priority 2 — Střední
-…
+Celkem: [součet × 2,5 = X/100]
 
-## Priority 3 — Drobnosti
-…
+## Efekt × náročnost
+[Jedna tabulka všech P1+P2 zjištění, seřazená od nejlepšího poměru:]
+| ID | Zjištění | Kdo narazil | Dopad | Náročnost | Kde opravit |
+|---|---|---|---|---|---|
+| P1-01 | … | 3/4 person · mobil | Vysoký | 2 h | Shoptet admin |
+[Náročnost ∈ {15 min, 2 h, 1 den, 3–5 dní, projekt}. Dopad ∈ {Vysoký, Střední, Nízký} + důvod v textu zjištění.]
+
+## Rychlé výhry — checklist na tento týden
+- [ ] [ID] [akce] ([odhad času], [kdo: admin / šablona / vývojář])
+- [ ] …
+
+## P1 — Blokátory nákupu
+1. **[Problém]** (P1-01) — postihlo: [persony] · zařízení: [mobil/desktop/obojí] · `[pozorováno personou]`
+   - **Důkaz:** [přesná URL] · citace persony · ![popis](screenshots/<slug>/NN-label.png)
+   - **Návrh řešení:** [konkrétně, proveditelně]
+   - **Kde opravit:** [Shoptet admin klik-cesta, např. „Nastavení → Objednávkový proces → …“ / „Vzhled → Editor šablon“ / „⚠️ vyžaduje vývojáře (~X h)“]
+
+## P2 — Brzdy konverze
+[stejná struktura, screenshot kde je]
+
+## P3 — Hygiena (stručně)
+- [max ~8 odrážek, bez balastu]
+
+## Standardní nedostatky platformy Shoptet *(volitelné)*
+[Nálezy, které sdílí většina Shoptet eshopů — opt-out newsletteru, e-mail validace, cookie lišta… Stále stojí za opravu, ale nejsou specifické pro tento eshop.]
+
+## Právní rizika *(volitelné)*
+[Souhrn všeho s právní expozicí na jednom místě: souhlas s OP/GDPR, cookies, IČO, reklamační podmínky. Sekce, kterou majitel přepošle právníkovi.]
+
+## Sliby vs. realita *(volitelné)*
+[Rozpor mezi tím, co eshop veřejně slibuje (doprava zdarma, záruka, termíny), a tím, co persony reálně zažily v checkoutu.]
+
+## Co se láme jen na některých zařízeních *(volitelné)*
+| Problém | iPhone | Pixel | Desktop | Laptop |
+
+## Hotové texty k nasazení
+| Místo | Současný text | Navržený text | Proč |
+[5–15 řetězců připravených ke zkopírování: chybové hlášky, CTA, mikrocopy k dopravě. Nejvyšší vnímaná hodnota na jednotku práce.]
 
 ## Pozorování po personách
-### [Jméno 1]
-- Rozhodnutí: [koupila by / váhá / odešla + proč]
-- Nejsilnější friction: [bod]
-- Co ocenila: [bod]
-
-### [Jméno 2]
-…
+### [Jméno] ([věk, role, zařízení])
+- **Provedená akce:** [odeslala objednávku / zastavila před odesláním / blokována — proč]
+- **Rozhodnutí:** [koupila by / váhá / odešla + proč] · pravděpodobnost dokončení X/10
+- **Nejsilnější friction:** [bod]
+- **Co ocenila:** [bod]
 
 ## Co funguje dobře (zachovat)
 - …
 
-## Srovnání s minulým testem
-[Pouze pokud Re-Test. Tabulka: problém / stav minule / stav teď / verdikt]
+## Sporná zjištění *(volitelné)*
+[Fakta, na kterých se persony neshodly a nešla doověřit: co tvrdí kdo, a jak to ověřit ručně.]
+
+## Otevřené věci — nutno ověřit ručně *(volitelné)*
+[Co automatizovaný test nedokázal ověřit (např. dokončení platby kartou) a majitel/agentura by měli projít ručně.]
+
+## Srovnání s minulým testem *(pouze Re-test)*
+[Tabulka: ID / problém / stav minule / stav teď / verdikt]
+
+## Jak ověříme, že to zabralo
+[Pro 3–5 nejdůležitějších zjištění: co změřit, aktuální stav, cílový stav, kdy pustit re-test. Přirozený podklad pro navazující spolupráci.]
 
 ## Doporučený další krok
-[Jedna konkrétní akce, kterou bys udělal zítra ráno]
+[Jedna konkrétní akce, kterou bys udělal zítra ráno.]
 ```
 
-5. Present the SUMMARY to the user in the chat (paste the full markdown, don't just link to the file).
+### 3d. Definition of done for SUMMARY.md
+
+Before presenting, self-check:
+
+- [ ] Manažerské shrnutí ≤150 slov, čitelné bez zbytku reportu
+- [ ] Každé P1 má: URL + citaci + vložený screenshot (`![]`), návrh řešení, "Kde opravit"
+- [ ] Všechny vložené screenshoty existují na disku (ověřeno v 3a)
+- [ ] Žádné vymyšlené % / benchmarky bez zdroje; odhady označené
+- [ ] Žádný interní žargon (sandbox, subagent, Playwright, selector…)
+- [ ] Generické Shoptet nálezy odděleny od specifických
+- [ ] Efekt × náročnost tabulka pokrývá 100 % P1+P2
+- [ ] Hotové texty: ≥5 řetězců
+- [ ] Konzistentní ID formát (P1-01, P2-03…) použitelný v ticketovacím systému
+
+Finally, present the SUMMARY to the user in the chat (paste the full markdown, don't just link to the file).
 
 **[HITL PAUSE — Phase 3]:**
 Stop and ask exactly:
@@ -296,7 +404,9 @@ Triggered in Phase 1 if user chooses Re-Test against a previous run.
 - [ ] Playwright successfully installed and chromium+webkit browsers are available
 - [ ] Discovery crawl visited ≥5 pages and produced `raw-crawl.json`
 - [ ] Personas are named, specific to this eshop, and user-approved
-- [ ] All N persona subagents produced reports in `personas/`
-- [ ] Buyer persona (and only the Buyer) submitted a test order with the test-note
-- [ ] `SUMMARY.md` exists, is in Czech, follows the exact structure above
+- [ ] All N persona subagents produced reports in `personas/` (or gaps are documented in SUMMARY)
+- [ ] Buyer persona (and only the Buyer) submitted a test order with the test-note — with **převod/dobírka** payment so the thank-you page and order number were captured; if blocked, it's in `## Otevřené věci`
+- [ ] `SUMMARY.md` exists, is in Czech, follows the exact structure above, and passed the 3d definition-of-done self-check
+- [ ] Every screenshot referenced in SUMMARY.md and persona reports exists on disk
+- [ ] Run folder is clean: only `personas/`, `screenshots/` (PNGs only), `work/`, `raw-crawl.json`, `personas.json` (`{"personas": [...]}`), `SUMMARY.md`
 - [ ] User explicitly closed out Phase 3

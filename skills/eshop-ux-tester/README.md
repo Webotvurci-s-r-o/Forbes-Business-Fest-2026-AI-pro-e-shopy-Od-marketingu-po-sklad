@@ -1,8 +1,8 @@
 # eshop-ux-tester
 
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Category:** UX / E-commerce  
-**Author:** skills-marketplace
+**Author:** Webotvůrci (https://www.webotvurci.cz)
 
 ## Co skill dělá
 
@@ -14,41 +14,36 @@ Navrženo pro **Shoptet** (a jiné CZ e-commerce CMS), kde agresivní JS/CSS ove
 
 - ✅ **Persony podle eshopu, ne šablony** — Claude nejdřív crawluje tvůj eshop a teprve pak generuje Barboru, 34, MD, která hledá kočárek do 20 tis., ne "price-sensitive shopper".
 - ✅ **Paralelní testování** — 4+ subagenti najednou, každý s vlastním browser contextem.
-- ✅ **Mobil + desktop** — default 2× mobil (iPhone 14 Pro, Pixel 7) + 2× desktop (1920×1080, 1366×768). Lze upravit.
-- ✅ **Bezpečné testy objednávek** — pouze jedna persona (Designated Buyer) dojde až k odeslání, s povinnou poznámkou `TEST OBJEDNÁVKA — prosím ignorovat`. Ostatní zastaví před tlačítkem.
-- ✅ **Re-test mode** — po úpravách eshopu pustíš znovu se stejnými personami a dostaneš diff oproti minulému běhu.
+- ✅ **Mobil + desktop** — default 2× mobil (iPhone 14 Pro, Pixel 7) + 2× desktop (1920×1080, 1366×768). Lze upravit. Mobilní persony měří tap targety, sticky CTA a kolizi klávesnice s tlačítkem.
+- ✅ **Konzultační report, ne jen seznam problémů** — manažerské shrnutí na 60 sekund, skórkarta 8 oblastí (X/100), tabulka efekt × náročnost, checklist rychlých výher, hotové texty k nasazení a u každého zjištění „kde to opravit v Shoptet adminu".
+- ✅ **Důkazy povinně** — každé kritické zjištění má URL, citaci a vložený screenshot; priority se řídí byznys dopadem (špatné účtování / právní riziko = P1 i při jedné personě).
+- ✅ **Hloubkové testy checkoutu** — prázdný submit, neplatný e-mail/PSČ, falešný kupón, tlačítko zpět, přepočet množství. Vyhledávání se testuje maticí 3 dotazů včetně use-case ("stan na svatbu").
+- ✅ **Bezpečné testy objednávek** — pouze jedna persona (Designated Buyer) dojde až k odeslání (platba převodem/dobírkou, aby se zachytilo číslo objednávky), s povinnou poznámkou `TEST OBJEDNÁVKA — prosím ignorovat`. Ostatní zastaví před tlačítkem.
+- ✅ **Re-test mode** — po úpravách eshopu pustíš znovu se stejnými personami a dostaneš diff oproti minulému běhu + sekci „Jak ověříme, že to zabralo".
 - ✅ **HITL pauzy** — orchestrátor se ptá po navržených personách a před finálním reportem; nerozbuší se ti účet bez kontroly.
-- ✅ **Vše česky** — persony, feedback, SUMMARY.
+- ✅ **Vše česky a v řeči klienta** — žádný interní žargon v reportech; scratch soubory oddělené ve `work/`, run folder je předatelný klientovi tak, jak je.
 
 ## Požadavky (před instalací)
 
 - **Claude Code** (CLI, VS Code extension, nebo Cursor IDE)
 - **Node.js 18+** — skill potřebuje `node` pro Playwright. Ověř: `node --version`
-- **Přístup k git** a k tomuto marketplace repozitáři
 - **Disk:** ~500 MB na Playwright install (první běh) + ~50 MB na každý test run (screenshoty)
 
 ## Instalace — krok za krokem
 
-### Krok 1: Naklonuj marketplace repo (pokud ho ještě nemáš)
+### Krok 1: Stáhni skill
 
-```bash
-git clone https://github.com/Webotvurci-s-r-o/skills-marketplace.git
-cd skills-marketplace
-```
+Složku `eshop-ux-tester` stáhni z [GitHubu](https://github.com/Webotvurci-s-r-o/Forbes-Business-Fest-2026-AI-pro-e-shopy-Od-marketingu-po-sklad/tree/main/skills/eshop-ux-tester) (nebo rozbal zip z kurzu [AI u kormidla e-shopu](https://www.webotvurci.cz/sluzby/ai-na-miru-pro-vas-byznys/kurz-ai-pro-e-shop/)).
 
-### Krok 2: Pusť install script
-
-Ze složky svého projektu, kam chceš skill nainstalovat:
+### Krok 2: Zkopíruj ho do Claude Code
 
 ```bash
 # Lokálně do projektu (doporučeno):
-/path/to/skills-marketplace/install.sh eshop-ux-tester
+mkdir -p .claude/skills && cp -R /cesta/k/eshop-ux-tester .claude/skills/
 
 # Nebo globálně pro všechny projekty:
-/path/to/skills-marketplace/install.sh eshop-ux-tester --global
+mkdir -p ~/.claude/skills && cp -R /cesta/k/eshop-ux-tester ~/.claude/skills/
 ```
-
-Script zkopíruje skill do `.claude/skills/eshop-ux-tester/` a vytvoří `.marketplace-source.json` (aby `wt_update-skills` vědělo kam pro updaty).
 
 ### Krok 3: Zaregistruj skill v Claude Code settings
 
@@ -170,14 +165,15 @@ ux-testing/
         │   ├── jitka-m.md
         │   └── pavel-s.md
         ├── screenshots/
-        │   ├── barbora-k/
+        │   ├── barbora-k/            ← pouze PNG
         │   │   ├── 01-homepage.png
         │   │   ├── 02-category.png
         │   │   └── …
         │   └── …
+        ├── work/                     ← scratch (skripty, poznámky) — není součást reportu
         ├── raw-crawl.json            ← data z průzkumu eshopu
         ├── personas.json             ← schválené definice person (pro re-test)
-        └── SUMMARY.md                ← finální report
+        └── SUMMARY.md                ← finální report (se skórkartou a vloženými screenshoty)
 ```
 
 ## Bezpečnost & etika

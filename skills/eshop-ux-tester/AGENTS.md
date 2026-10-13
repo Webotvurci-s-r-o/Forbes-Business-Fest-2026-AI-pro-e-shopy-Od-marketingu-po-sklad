@@ -44,12 +44,19 @@ Follow the 7 steps from JOURNEYS.md (landing → finding → PDP → cart → vi
    - `<WORKSPACE_ABS_PATH>` — your run's output root (`ux-testing/<domain>/<timestamp>/`)
    - `<OUTPUT_FILE>` — absolute path for your persona markdown
    - `<SCREENSHOT_DIR>` — absolute path for your screenshots
+   - `<WORK_DIR>` — absolute path for your scratch files (`work/<persona-slug>/`)
    Require these with: `const { chromium, webkit, devices } = require('<PLAYWRIGHT_ABS_PATH>');`
 2. Use a dedicated browser context (`browser.newContext({ ...device })`) — not a shared browser.
-3. Save screenshots to `<SCREENSHOT_DIR>/NN-label.png`.
-4. Save your final persona report to `<OUTPUT_FILE>` in the exact format below.
+3. Save screenshots to `<SCREENSHOT_DIR>/NN-label.png`. **`<SCREENSHOT_DIR>` contains ONLY `.png` files.** Your `.cjs` scripts, `storage.json`, DOM dumps, text notes — everything else — goes to `<WORK_DIR>`. The screenshot folder is part of the client deliverable.
+4. Save your final persona report to `<OUTPUT_FILE>` in the exact format below. Screenshot references in the report are always **relative**: `screenshots/<persona-slug>/NN-label.png`.
 5. Do NOT touch other personas' files. Do NOT edit the Orchestrator's files (`raw-crawl.json`, `SUMMARY.md`, `personas.json`).
 6. Read DEV_RULES.md before starting.
+
+## Evidence honesty (hard rules)
+
+- **Never reference a screenshot you did not verify exists.** Before writing the report, list `<SCREENSHOT_DIR>` and cite only filenames from that listing. If a step wasn't captured, write `(nezachyceno)` — an honest gap beats a fabricated citation.
+- Every claim about a concrete page element (button label, error message, price, missing parameter) needs either a screenshot reference or a verbatim quote of on-page text you actually captured via Playwright. If you have neither, mark the claim `(z paměti, neověřeno)` or drop it.
+- Your report will be machine-checked: the Orchestrator verifies every referenced screenshot exists on disk. Dangling references discredit the whole run.
 
 ## How you should write Playwright scripts
 
@@ -64,14 +71,14 @@ You control the browser step-by-step by writing small Node.js scripts and runnin
 **Example scaffolding — use `.cjs` extension and `require()` (Playwright is CommonJS):**
 
 ```javascript
-// persona-step.cjs
+// <WORK_DIR>/persona-step.cjs  — scripts live in WORK_DIR, never in the run root or screenshots/
 const fs = require('fs');
 const { chromium, webkit, devices } = require('/abs/path/to/ux-testing/.playwright/node_modules/playwright');
 
 (async () => {
   const ENGINE = '<webkit_or_chromium>';          // webkit for iOS, chromium for Android/desktop
   const DEVICE = devices['<device-name>'];        // e.g., 'iPhone 14 Pro'
-  const STORAGE = '<persona-slug>.storage.json';
+  const STORAGE = '<WORK_DIR>/<persona-slug>.storage.json';
 
   const browserType = ENGINE === 'webkit' ? webkit : chromium;
   const browser = await browserType.launch({ headless: true });
@@ -119,7 +126,7 @@ Write this exact structure to <OUTPUT_FILE>, in Czech:
 
 ## Kdo jsem (ve zkratce)
 
-<2–3 věty v první osobě: kdo jsem, co chci, z čeho mám obavu>
+<max 2 věty v první osobě — klient personu už zná ze schvalování, nerozepisuj se>
 
 ## Průběh — krok po kroku
 
@@ -131,9 +138,13 @@ Write this exact structure to <OUTPUT_FILE>, in Czech:
 - Screenshot: screenshots/<slug>/01-homepage.png
 
 ### 2. Hledání toho, co chci
-- Strategie (vyhledávání / kategorie / …): …
-- Napsala jsem do vyhledávání: "<konkrétní dotaz>"
-- Výsledek: …
+- Vyhledávací matice (3 povinné dotazy dle JOURNEYS.md):
+  | Dotaz | Zadaný text | Výsledků | Top 3 | Autocomplete |
+  |---|---|---|---|---|
+  | přesný | "…" | … | … | ano/ne |
+  | přirozený | "…" | … | … | ano/ne |
+  | use-case | "…" | … | … | ano/ne |
+- Navigace + filtr/řazení: <který filtr jsem použila a co se stalo — nebo "kategorie nemá filtry ani řazení">
 - Screenshot: …
 
 ### 3. Produkt, který jsem si prohlédla
@@ -157,6 +168,15 @@ Write this exact structure to <OUTPUT_FILE>, in Czech:
 - Krok 1 (<popis>): …
 - Krok 2 (<popis>): …
 - Krok 3 (<popis>): …
+- Micro-testy (povinné, viz JOURNEYS.md Step 6):
+  | Test | Výsledek | Přesná hláška / co se stalo | Screenshot |
+  |---|---|---|---|
+  | prázdný submit | pass/fail | … | … |
+  | neplatný e-mail + PSČ | pass/fail | … | … |
+  | kupón TEST123 | pass/fail | … | … |
+  | zpět v prohlížeči | data přežila/ne | … | … |
+  | množství 1→2→1 | přepočet ok/ne | … | … |
+  | (mobil) CTA pod klávesnicí | ano/ne | … | … |
 - Screenshoty: …
 
 ### 7. [pouze Buyer] Odeslání
@@ -169,10 +189,21 @@ Write this exact structure to <OUTPUT_FILE>, in Czech:
 - Čas, kdy bych v reálu mačkla / nemačkla Odeslat: …
 - Co mi v tu chvíli hlavou proletělo: …
 
+## [pouze mobilní persony] Mobilní měření
+
+<Povinný blok s naměřenými čísly, ne dojmy:>
+- Tap targety hlavních prvků (CTA, košík, menu): <šířka×výška v px — změř přes boundingBox()>
+- Sticky CTA na PDP: <ano/ne; pozice CTA v px vs. celková výška stránky>
+- Klávesnice vs. CTA v checkoutu: <výsledek micro-testu f>
+- Autofill: <co iOS/Android autofill vyplnil špatně, pokud něco>
+- Dosažitelnost palcem: <je finální CTA v dolní třetině obrazovky?>
+
 ## Verdikt
 
+**Provedená akce:** <odeslala objednávku č. X / zastavila před odesláním / blokována — důvod>  
 **Rozhodnutí:** <Koupila bych / Váhám / Odešla bych>  
-**Pravděpodobnost dokončení (0–10):** <číslo>  
+**Pravděpodobnost dokončení (0–10):** <číslo — viz definice v JOURNEYS.md; dealbreaker v textu ⇒ skóre <7>  
+**Co by muselo být jinak, aby to bylo o 3 body výš:** …  
 **Jeden důvod, který to rozhodl:** …
 
 **Největší friction:**
@@ -184,8 +215,10 @@ Write this exact structure to <OUTPUT_FILE>, in Czech:
 1. …
 2. …
 
-## Tech poznámky (pouze pokud má smysl)
-<optional: chyby 404/500, JS erroring v konzoli, pomalé načítání konkrétních kroků, cokoli, co shop owner ocení když ví>
+**Co by to pro mě vyřešilo:** <max 3 řádky v první osobě. ŽÁDNÉ redesign návrhy, IA přestavby ani strategická doporučení — to je práce Orchestrátora v syntéze, a čtyři persony píšící čtyři redesigny jsou balast.>
+
+## Tech poznámky (pro klienta, pouze pokud má smysl)
+<POUZE věci, které postihují reálného návštěvníka: 404/500, JS chyby měnící chování stránky, rozbité odkazy, pomalé načítání konkrétních kroků, duplicitní pole ve formuláři. Playwright/selector/automation problémy sem NEPATŘÍ — ty zapiš do <WORK_DIR>/run-notes.md, klient je nikdy nesmí vidět.>
 ```
 
 ## When to stop and report
@@ -212,8 +245,17 @@ You're done when:
 
 ## Anti-patterns to watch for
 
+Every one of these was observed in real runs — they are not hypothetical:
+
 - Subagent writes a 200-line Playwright script that does the whole journey at once → no observations, no value.
 - Subagent reports in English → wrong audience.
 - Subagent dismisses cookie banners with code before observing them → that IS an observation worth capturing.
 - Non-Buyer persona clicks submit "to see what happens" → forbidden; that creates a real order.
-- Subagent invents findings not backed by screenshots or concrete page content → low trust; Orchestrator should flag this in Phase 3.
+- Subagent invents findings not backed by screenshots or concrete page content → low trust; Orchestrator will flag and downgrade them in Phase 3.
+- **Report cites screenshots that were never saved** (renamed, or from a crashed earlier attempt) → machine-checked, discredits the run. List the directory before writing.
+- **Buyer pays by card gateway** → redirect eats the thank-you page and order number. Buyer pays převodem/dobírkou. Always.
+- **Buyer replaces the persona's identity with real operator data** ("TEST — real name", agency e-mail) at exactly the step where form UX matters → keep the persona's name/address/PSČ; the test markers are ONLY the e-mail (`test+<slug>@…`) and the order note.
+- **Wrong grammatical gender** ("Koupila bych" from Jaroslav) → visible to the client, breaks immersion. Match the persona throughout.
+- **Persona writes an IA redesign / strategy chapter** → cut. Observations and "co by to pro mě vyřešilo" (max 3 řádky) only.
+- **Speculating instead of doing** ("IČO pole předpokládám v kroku 3 — neověřoval jsem, takže ANO existuje") → either do the step and report what you saw, or write "neověřeno". Never convert an assumption into a confirmation.
+- **Automation trivia in the client report** (selector workarounds, storageState, script inventories, deviceScaleFactor) → belongs in `<WORK_DIR>/run-notes.md`, never in the persona report.
